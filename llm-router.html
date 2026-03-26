@@ -1,0 +1,1364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NeuralRoute — Smart LLM Router</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --surface2: #18181f;
+    --surface3: #1e1e28;
+    --border: #2a2a38;
+    --border2: #33334a;
+    --text: #e8e8f0;
+    --text2: #8888aa;
+    --text3: #55556a;
+    --accent: #6c63ff;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --claude: #c084fc;
+    --gpt: #4ade80;
+    --gemini: #60a5fa;
+    --llama: #fb923c;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+  }
+
+  /* Subtle grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(108,99,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(108,99,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10,10,15,0.85);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-icon {
+    width: 32px; height: 32px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+  }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text);
+  }
+
+  .logo-text span { color: var(--accent2); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .mode-toggle {
+    display: flex;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .mode-btn {
+    padding: 6px 14px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+    letter-spacing: 0.5px;
+  }
+
+  .mode-btn.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  /* ── Layout ── */
+  .app {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 65px);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 260px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  .sidebar-section {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 1.5px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+
+  /* Model pills */
+  .model-list { display: flex; flex-direction: column; gap: 6px; }
+
+  .model-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+
+  .model-item:hover { border-color: var(--border2); background: var(--surface2); }
+  .model-item.active { border-color: var(--accent); background: rgba(108,99,255,0.08); }
+
+  .model-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .model-name {
+    font-size: 13px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .model-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--surface3);
+    color: var(--text3);
+    letter-spacing: 0.5px;
+  }
+
+  .model-check {
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    border: 1px solid var(--border2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    flex-shrink: 0;
+  }
+
+  .model-item.active .model-check {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* Routing indicator */
+  .routing-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+  }
+
+  .routing-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .pulse {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(52,211,153,0.4); }
+    50% { opacity: 0.8; box-shadow: 0 0 0 6px rgba(52,211,153,0); }
+  }
+
+  .routing-label { font-size: 12px; font-weight: 600; }
+
+  .routing-reason {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text2);
+    line-height: 1.6;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+
+  .stat-box {
+    background: var(--surface3);
+    border-radius: 6px;
+    padding: 10px;
+    text-align: center;
+  }
+
+  .stat-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--accent2);
+  }
+
+  .stat-lbl {
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 2px;
+  }
+
+  /* ── Chat Area ── */
+  .chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .routed-to {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text2);
+  }
+
+  .routed-badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+
+  .compare-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text2);
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .compare-btn:hover { border-color: var(--accent); color: var(--accent2); }
+  .compare-btn.active { background: rgba(108,99,255,0.12); border-color: var(--accent); color: var(--accent2); }
+
+  /* Messages */
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    scroll-behavior: smooth;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .msg {
+    display: flex;
+    gap: 12px;
+    animation: fadeUp 0.3s ease;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.user { flex-direction: row-reverse; }
+
+  .msg-avatar {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    font-weight: 700;
+  }
+
+  .msg.user .msg-avatar {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+  }
+
+  .msg-body { max-width: 72%; display: flex; flex-direction: column; gap: 6px; }
+  .msg.user .msg-body { align-items: flex-end; }
+
+  .msg-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+  }
+
+  .msg-model-tag {
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 500;
+    border: 1px solid;
+  }
+
+  .msg-bubble {
+    padding: 14px 18px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.7;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text);
+  }
+
+  .msg.user .msg-bubble {
+    background: linear-gradient(135deg, rgba(108,99,255,0.2), rgba(167,139,250,0.15));
+    border-color: rgba(108,99,255,0.3);
+  }
+
+  /* Reasoning block */
+  .reasoning-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    margin-top: 4px;
+  }
+
+  .reasoning-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+
+  .reasoning-body {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text2);
+    line-height: 1.7;
+  }
+
+  .reasoning-scores {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+
+  .score-pill {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .score-bar-wrap {
+    width: 40px; height: 4px;
+    background: var(--surface3);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .score-bar { height: 100%; border-radius: 2px; transition: width 0.5s ease; }
+
+  /* Comparison view */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 20px 24px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .compare-grid::-webkit-scrollbar { width: 4px; }
+  .compare-grid::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .compare-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    animation: fadeUp 0.3s ease;
+  }
+
+  .compare-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+
+  .compare-card-body {
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.7;
+    flex: 1;
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .compare-card-footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+  }
+
+  .winner-badge {
+    margin-left: auto;
+    padding: 3px 8px;
+    background: rgba(52,211,153,0.15);
+    border: 1px solid rgba(52,211,153,0.3);
+    border-radius: 4px;
+    color: var(--green);
+    font-size: 10px;
+  }
+
+  /* Input area */
+  .input-area {
+    padding: 16px 24px 20px;
+    border-top: 1px solid var(--border);
+    background: rgba(10,10,15,0.8);
+    backdrop-filter: blur(8px);
+  }
+
+  .input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .input-wrap {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    transition: border-color 0.2s;
+  }
+
+  .input-wrap:focus-within { border-color: var(--accent); }
+
+  #chat-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    resize: none;
+    max-height: 120px;
+    line-height: 1.5;
+  }
+
+  #chat-input::placeholder { color: var(--text3); }
+
+  .send-btn {
+    width: 36px; height: 36px;
+    background: var(--accent);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    font-size: 16px;
+  }
+
+  .send-btn:hover { background: var(--accent2); transform: scale(1.05); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .input-hints {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .hint-chip {
+    padding: 5px 11px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+
+  .hint-chip:hover { border-color: var(--accent); color: var(--accent2); background: rgba(108,99,255,0.08); }
+
+  /* Loading */
+  .typing-indicator {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: fit-content;
+  }
+
+  .typing-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text3);
+    animation: typingBounce 1.2s infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .empty-icon {
+    font-size: 48px;
+    margin-bottom: 4px;
+    filter: drop-shadow(0 0 20px rgba(108,99,255,0.4));
+  }
+
+  .empty-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .empty-sub {
+    font-size: 14px;
+    color: var(--text2);
+    max-width: 400px;
+    line-height: 1.6;
+  }
+
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-top: 8px;
+    max-width: 500px;
+    width: 100%;
+  }
+
+  .feature-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    text-align: left;
+  }
+
+  .feature-icon { font-size: 20px; margin-bottom: 8px; }
+  .feature-title { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .feature-desc { font-size: 11px; color: var(--text2); line-height: 1.5; }
+
+  /* Override panel */
+  .override-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(251,191,36,0.08);
+    border: 1px solid rgba(251,191,36,0.2);
+    border-radius: var(--radius-sm);
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--amber);
+    font-family: 'DM Mono', monospace;
+  }
+
+  .override-close {
+    margin-left: auto;
+    cursor: pointer;
+    opacity: 0.6;
+  }
+
+  .override-close:hover { opacity: 1; }
+
+  .model-override-select {
+    display: none;
+    gap: 6px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  .model-override-select.show { display: flex; }
+
+  .override-pill {
+    padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    font-size: 12px;
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: var(--text2);
+  }
+
+  .override-pill:hover { border-color: var(--amber); color: var(--amber); }
+  .override-pill.selected { border-color: var(--amber); background: rgba(251,191,36,0.1); color: var(--amber); }
+
+  /* Scrollable sidebar content */
+  .sidebar-scroll { flex: 1; overflow-y: auto; }
+  .sidebar-scroll::-webkit-scrollbar { width: 3px; }
+  .sidebar-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* History item */
+  .history-item {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.15s;
+  }
+
+  .history-item:hover { background: var(--surface2); }
+
+  .history-q {
+    font-size: 12px;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+  }
+
+  .history-meta {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text3);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .feature-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">Neural<span>Route</span></div>
+  </div>
+  <div class="header-right">
+    <div class="mode-toggle">
+      <button class="mode-btn active" onclick="setMode('chat')" id="btn-chat">Chat</button>
+      <button class="mode-btn" onclick="setMode('compare')" id="btn-compare">Compare</button>
+    </div>
+  </div>
+</header>
+
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Active Models</div>
+      <div class="model-list" id="model-list">
+        <div class="model-item active" data-model="claude" onclick="toggleModel(this)">
+          <div class="model-dot" style="background:var(--claude)"></div>
+          <span class="model-name">Claude</span>
+          <span class="model-tag">Sonnet</span>
+          <div class="model-check">✓</div>
+        </div>
+        <div class="model-item active" data-model="gpt" onclick="toggleModel(this)">
+          <div class="model-dot" style="background:var(--gpt)"></div>
+          <span class="model-name">GPT-4o</span>
+          <span class="model-tag">OpenAI</span>
+          <div class="model-check">✓</div>
+        </div>
+        <div class="model-item active" data-model="gemini" onclick="toggleModel(this)">
+          <div class="model-dot" style="background:var(--gemini)"></div>
+          <span class="model-name">Gemini</span>
+          <span class="model-tag">Google</span>
+          <div class="model-check">✓</div>
+        </div>
+        <div class="model-item active" data-model="llama" onclick="toggleModel(this)">
+          <div class="model-dot" style="background:var(--llama)"></div>
+          <span class="model-name">Llama 3</span>
+          <span class="model-tag">Meta</span>
+          <div class="model-check">✓</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Router Status</div>
+      <div class="routing-card">
+        <div class="routing-status">
+          <div class="pulse"></div>
+          <span class="routing-label" id="routing-model-name">Auto Routing</span>
+        </div>
+        <div class="routing-reason" id="routing-reason-text">Send a message to see routing logic</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-num" id="stat-msgs">0</div>
+          <div class="stat-lbl">Messages</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="stat-routes">—</div>
+          <div class="stat-lbl">Top Model</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-scroll">
+      <div class="sidebar-section" style="border-bottom:none">
+        <div class="sidebar-label">History</div>
+      </div>
+      <div id="history-list"></div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat-area" id="chat-area">
+    <!-- Chat header -->
+    <div class="chat-header">
+      <div class="routed-to" id="routed-to">
+        <span style="color:var(--text3)">Routing to</span>
+        <div class="routed-badge" id="routed-badge" style="color:var(--accent2);border-color:rgba(108,99,255,0.3)">
+          <span>⚡</span> Auto
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="compare-btn" onclick="toggleOverride()" id="override-btn">
+          ⚙ Override Model
+        </button>
+        <button class="compare-btn" onclick="setMode('compare')" id="compare-btn-header">
+          ⊞ Compare All
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages container (single chat) -->
+    <div id="single-chat" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+      <div class="messages" id="messages">
+        <div class="empty-state" id="empty-state">
+          <div class="empty-icon">⚡</div>
+          <div class="empty-title">Smart LLM Router</div>
+          <div class="empty-sub">Ask anything. NeuralRoute analyzes your prompt and picks the best model — then shows you exactly why.</div>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <div class="feature-icon">🧠</div>
+              <div class="feature-title">Smart Routing</div>
+              <div class="feature-desc">Task-aware model selection with full reasoning</div>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">⊞</div>
+              <div class="feature-title">Compare Mode</div>
+              <div class="feature-desc">See all models respond side-by-side</div>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🎛</div>
+              <div class="feature-title">Override</div>
+              <div class="feature-desc">Force a specific model when you know best</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compare grid (hidden by default) -->
+    <div id="compare-chat" style="display:none;flex:1;overflow:hidden;flex-direction:column">
+      <div class="compare-grid" id="compare-grid"></div>
+    </div>
+
+    <!-- Input -->
+    <div class="input-area">
+      <div class="model-override-select" id="override-select">
+        <div class="override-pill selected" data-override="auto" onclick="selectOverride(this)">⚡ Auto</div>
+        <div class="override-pill" data-override="claude" onclick="selectOverride(this)" style="--oc:var(--claude)">◆ Claude</div>
+        <div class="override-pill" data-override="gpt" onclick="selectOverride(this)">◆ GPT-4o</div>
+        <div class="override-pill" data-override="gemini" onclick="selectOverride(this)">◆ Gemini</div>
+        <div class="override-pill" data-override="llama" onclick="selectOverride(this)">◆ Llama 3</div>
+      </div>
+
+      <div class="input-hints" id="hint-chips">
+        <span class="hint-chip" onclick="useHint(this)">📊 Explain a finance concept</span>
+        <span class="hint-chip" onclick="useHint(this)">💻 Write Python code</span>
+        <span class="hint-chip" onclick="useHint(this)">✍️ Draft an email</span>
+        <span class="hint-chip" onclick="useHint(this)">🔢 Solve a math problem</span>
+        <span class="hint-chip" onclick="useHint(this)">🌐 Search current events</span>
+      </div>
+
+      <div class="input-row">
+        <div class="input-wrap">
+          <textarea id="chat-input" rows="1" placeholder="Ask anything — NeuralRoute picks the best model…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        </div>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">↑</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──
+let mode = 'chat';
+let overrideModel = 'auto';
+let showOverride = false;
+let msgCount = 0;
+let modelUsage = {};
+let history = [];
+let isLoading = false;
+
+const MODEL_CONFIG = {
+  claude:  { name: 'Claude',   color: '#c084fc', emoji: '◆', strengths: ['reasoning','writing','analysis','coding','nuanced tasks'] },
+  gpt:     { name: 'GPT-4o',  color: '#4ade80', emoji: '◆', strengths: ['coding','math','instruction following','structured output'] },
+  gemini:  { name: 'Gemini',  color: '#60a5fa', emoji: '◆', strengths: ['multimodal','web knowledge','summarization','current events'] },
+  llama:   { name: 'Llama 3', color: '#fb923c', emoji: '◆', strengths: ['open source tasks','privacy','local execution','fast inference'] },
+};
+
+// ── Mode ──
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-chat').classList.toggle('active', m === 'chat');
+  document.getElementById('btn-compare').classList.toggle('active', m === 'compare');
+  document.getElementById('single-chat').style.display = m === 'chat' ? 'flex' : 'none';
+  document.getElementById('compare-chat').style.display = m === 'compare' ? 'flex' : 'none';
+}
+
+// ── Model toggle ──
+function toggleModel(el) {
+  el.classList.toggle('active');
+}
+
+function getActiveModels() {
+  return [...document.querySelectorAll('.model-item.active')].map(el => el.dataset.model);
+}
+
+// ── Override ──
+function toggleOverride() {
+  showOverride = !showOverride;
+  document.getElementById('override-select').classList.toggle('show', showOverride);
+  document.getElementById('override-btn').classList.toggle('active', showOverride);
+}
+
+function selectOverride(el) {
+  document.querySelectorAll('.override-pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+  overrideModel = el.dataset.override;
+}
+
+// ── Hints ──
+function useHint(el) {
+  const map = {
+    '📊 Explain a finance concept': 'Explain how compound interest works and why it matters for long-term investing.',
+    '💻 Write Python code': 'Write a Python function that calculates the moving average of a stock price list.',
+    '✍️ Draft an email': 'Write a professional email asking for an internship at a fintech startup.',
+    '🔢 Solve a math problem': 'What is the present value of $10,000 received in 5 years at a 6% discount rate?',
+    '🌐 Search current events': 'What are the biggest financial market risks heading into 2026?'
+  };
+  const text = el.textContent.trim();
+  document.getElementById('chat-input').value = map[text] || text;
+  autoResize(document.getElementById('chat-input'));
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+// ── Routing logic (client-side smart router) ──
+function routeMessage(prompt) {
+  const p = prompt.toLowerCase();
+  const scores = { claude: 0, gpt: 0, gemini: 0, llama: 0 };
+  const reasons = [];
+
+  // Code detection
+  const codeKeywords = ['code','function','python','javascript','debug','error','class','script','algorithm','implement','programming','syntax','loop','array','sql','html','css','api'];
+  const codeScore = codeKeywords.filter(k => p.includes(k)).length;
+  if (codeScore > 0) {
+    scores.gpt += codeScore * 2;
+    scores.claude += codeScore;
+    if (codeScore >= 2) reasons.push(`Code task detected (${codeScore} signals)`);
+  }
+
+  // Math/finance
+  const mathKeywords = ['calculate','math','equation','formula','derivative','integral','statistics','probability','finance','interest','compound','present value','roi','percentage','budget'];
+  const mathScore = mathKeywords.filter(k => p.includes(k)).length;
+  if (mathScore > 0) {
+    scores.gpt += mathScore * 2;
+    scores.claude += mathScore;
+    if (mathScore >= 1) reasons.push(`Quantitative reasoning detected`);
+  }
+
+  // Writing/creative
+  const writeKeywords = ['write','draft','essay','email','letter','story','creative','poem','explain','describe','summarize','report','blog'];
+  const writeScore = writeKeywords.filter(k => p.includes(k)).length;
+  if (writeScore > 0) {
+    scores.claude += writeScore * 2;
+    scores.gemini += writeScore;
+    if (writeScore >= 1) reasons.push(`Writing/drafting task detected`);
+  }
+
+  // Analysis/reasoning
+  const analysisKeywords = ['analyze','compare','evaluate','pros and cons','should i','recommend','why','how does','what is the difference','nuanced','complex'];
+  const analysisScore = analysisKeywords.filter(k => p.includes(k)).length;
+  if (analysisScore > 0) {
+    scores.claude += analysisScore * 2.5;
+    if (analysisScore >= 1) reasons.push(`Deep analysis required`);
+  }
+
+  // Current events
+  const currentKeywords = ['current','latest','today','2025','2026','recent','news','what happened','now'];
+  const currentScore = currentKeywords.filter(k => p.includes(k)).length;
+  if (currentScore > 0) {
+    scores.gemini += currentScore * 2;
+    if (currentScore >= 1) reasons.push(`Current/web knowledge needed`);
+  }
+
+  // Privacy/local keywords
+  const localKeywords = ['private','local','offline','open source','self-hosted'];
+  const localScore = localKeywords.filter(k => p.includes(k)).length;
+  if (localScore > 0) {
+    scores.llama += localScore * 3;
+    reasons.push(`Privacy/local execution preferred`);
+  }
+
+  // Default boost claude for general conversation
+  if (Object.values(scores).every(s => s === 0)) {
+    scores.claude += 3;
+    scores.gpt += 1;
+    reasons.push('General conversation — defaulting to strongest reasoner');
+  }
+
+  // Filter to active models only
+  const active = getActiveModels();
+  active.forEach(m => { if (scores[m] === undefined) scores[m] = 0; });
+  Object.keys(scores).forEach(m => { if (!active.includes(m)) scores[m] = -999; });
+
+  // Pick winner
+  const winner = Object.entries(scores).sort((a,b) => b[1] - a[1])[0][0];
+
+  // Normalize scores for display
+  const maxScore = Math.max(...Object.values(scores).filter(s => s > -999));
+  const normalized = {};
+  Object.entries(scores).forEach(([m,s]) => {
+    normalized[m] = s < 0 ? 0 : Math.round((s / Math.max(maxScore, 1)) * 100);
+  });
+
+  return { winner, scores: normalized, reasons };
+}
+
+// ── Send ──
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  autoResize(input);
+  document.getElementById('empty-state')?.remove();
+  document.getElementById('hint-chips').style.display = 'none';
+
+  msgCount++;
+  document.getElementById('stat-msgs').textContent = msgCount;
+
+  if (mode === 'compare') {
+    await sendCompare(text);
+  } else {
+    await sendChat(text);
+  }
+}
+
+async function sendChat(text) {
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+
+  // Determine model
+  const routing = routeMessage(text);
+  const chosenModel = overrideModel !== 'auto' ? overrideModel : routing.winner;
+  const cfg = MODEL_CONFIG[chosenModel];
+
+  // Update sidebar
+  updateRoutingUI(chosenModel, routing, overrideModel !== 'auto');
+
+  // Add user message
+  addUserMessage(text);
+
+  // Add typing indicator
+  const typingId = addTyping(chosenModel);
+
+  // Call Claude API (we always use Claude as the actual brain, but label it as chosen model)
+  let reply = '';
+  try {
+    const systemPrompt = `You are ${cfg.name}, a helpful AI assistant. ${
+      chosenModel === 'gpt' ? 'You excel at coding, math, and structured outputs. Be precise and technical.' :
+      chosenModel === 'gemini' ? 'You have strong web knowledge and excel at summarization and current events.' :
+      chosenModel === 'llama' ? 'You are open-source focused, privacy-conscious, and efficient.' :
+      'You excel at nuanced reasoning, analysis, and creative writing.'
+    } Answer the user's question helpfully and concisely.`;
+
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+    const data = await res.json();
+    reply = data.content?.map(b => b.text || '').join('') || 'Sorry, something went wrong.';
+  } catch(e) {
+    reply = 'Could not reach the API. Check your connection.';
+  }
+
+  // Remove typing
+  document.getElementById(typingId)?.remove();
+
+  // Add assistant message
+  addAssistantMessage(reply, chosenModel, routing, overrideModel !== 'auto');
+
+  // History
+  history.unshift({ q: text, model: chosenModel });
+  updateHistory();
+
+  modelUsage[chosenModel] = (modelUsage[chosenModel] || 0) + 1;
+  const topModel = Object.entries(modelUsage).sort((a,b)=>b[1]-a[1])[0];
+  if (topModel) document.getElementById('stat-routes').textContent = MODEL_CONFIG[topModel[0]].name;
+
+  isLoading = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+async function sendCompare(text) {
+  isLoading = true;
+  document.getElementById('send-btn').disabled = true;
+
+  const active = getActiveModels();
+  const routing = routeMessage(text);
+  updateRoutingUI(routing.winner, routing, false);
+
+  // Add user prompt banner
+  const grid = document.getElementById('compare-grid');
+  const banner = document.createElement('div');
+  banner.style.cssText = 'grid-column:1/-1;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:14px 18px;font-size:14px;animation:fadeUp 0.3s ease';
+  banner.innerHTML = `<span style="color:var(--text3);font-family:'DM Mono',monospace;font-size:11px">YOU ASKED</span><br>${text}`;
+  grid.appendChild(banner);
+
+  // Create cards for each active model
+  const cardIds = {};
+  active.forEach(model => {
+    const cfg = MODEL_CONFIG[model];
+    const id = 'card-' + model + Date.now();
+    cardIds[model] = id;
+    const card = document.createElement('div');
+    card.className = 'compare-card';
+    card.id = id;
+    card.innerHTML = `
+      <div class="compare-card-header">
+        <div class="model-dot" style="background:${cfg.color}"></div>
+        <span style="font-size:13px;font-weight:700">${cfg.name}</span>
+        ${model === routing.winner ? '<span class="winner-badge">⚡ Recommended</span>' : ''}
+      </div>
+      <div class="compare-card-body" id="body-${id}">
+        <div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>
+      </div>
+      <div class="compare-card-footer">
+        <span style="font-size:10px">Match score: ${routing.scores[model] ?? 0}%</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+
+  grid.scrollTop = grid.scrollHeight;
+
+  // Fetch responses (parallel)
+  const personas = {
+    claude: 'You are Claude by Anthropic. Excel at nuanced reasoning, analysis, and writing. Be thoughtful and detailed.',
+    gpt: 'You are GPT-4o by OpenAI. Excel at coding, math, and precise structured outputs. Be direct and technical.',
+    gemini: 'You are Gemini by Google. Excel at summarization, web knowledge, and multimodal tasks. Be comprehensive.',
+    llama: 'You are Llama 3 by Meta. Focus on efficiency, transparency, and open-source values. Be concise and practical.'
+  };
+
+  await Promise.all(active.map(async (model) => {
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          system: personas[model],
+          messages: [{ role: 'user', content: text }]
+        })
+      });
+      const data = await res.json();
+      const reply = data.content?.map(b => b.text || '').join('') || 'Error';
+      const bodyEl = document.getElementById('body-' + cardIds[model]);
+      if (bodyEl) bodyEl.textContent = reply;
+    } catch(e) {
+      const bodyEl = document.getElementById('body-' + cardIds[model]);
+      if (bodyEl) bodyEl.textContent = 'API error.';
+    }
+  }));
+
+  history.unshift({ q: text, model: 'compare' });
+  updateHistory();
+  msgCount++;
+  document.getElementById('stat-msgs').textContent = msgCount;
+  isLoading = false;
+  document.getElementById('send-btn').disabled = false;
+}
+
+// ── UI helpers ──
+function addUserMessage(text) {
+  const el = document.createElement('div');
+  el.className = 'msg user';
+  el.innerHTML = `
+    <div class="msg-avatar">U</div>
+    <div class="msg-body">
+      <div class="msg-bubble">${escHtml(text)}</div>
+    </div>
+  `;
+  document.getElementById('messages').appendChild(el);
+  scrollChat();
+}
+
+function addTyping(model) {
+  const cfg = MODEL_CONFIG[model];
+  const id = 'typing-' + Date.now();
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.id = id;
+  el.innerHTML = `
+    <div class="msg-avatar" style="background:${cfg.color}20;color:${cfg.color};font-size:11px;font-weight:700">${cfg.name[0]}</div>
+    <div class="msg-body">
+      <div class="typing-indicator">
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+        <div class="typing-dot"></div>
+      </div>
+    </div>
+  `;
+  document.getElementById('messages').appendChild(el);
+  scrollChat();
+  return id;
+}
+
+function addAssistantMessage(text, model, routing, wasOverride) {
+  const cfg = MODEL_CONFIG[model];
+  const reasonHtml = routing.reasons.length ? `
+    <div class="reasoning-block">
+      <div class="reasoning-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none'">
+        ▸ ROUTING REASONING ${wasOverride ? '(manual override)' : ''}
+      </div>
+      <div class="reasoning-body">
+        <div style="margin-bottom:8px">${routing.reasons.map(r => '• ' + r).join('<br>')}</div>
+        <div style="color:var(--text3);margin-bottom:8px">Model scores:</div>
+        <div class="reasoning-scores">
+          ${Object.entries(MODEL_CONFIG).map(([m, c]) => `
+            <div class="score-pill" style="border-color:${c.color}22">
+              <span style="color:${c.color};font-size:10px">${c.name}</span>
+              <div class="score-bar-wrap"><div class="score-bar" style="width:${routing.scores[m]??0}%;background:${c.color}"></div></div>
+              <span style="color:var(--text3)">${routing.scores[m]??0}%</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  ` : '';
+
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.innerHTML = `
+    <div class="msg-avatar" style="background:${cfg.color}20;color:${cfg.color};font-size:11px;font-weight:800">${cfg.name[0]}</div>
+    <div class="msg-body" style="max-width:80%">
+      <div class="msg-meta">
+        <span class="msg-model-tag" style="color:${cfg.color};border-color:${cfg.color}44;background:${cfg.color}11">${cfg.name}</span>
+        ${wasOverride ? '<span style="color:var(--amber)">⚙ override</span>' : '<span>⚡ auto-routed</span>'}
+      </div>
+      <div class="msg-bubble">${formatText(text)}</div>
+      ${reasonHtml}
+    </div>
+  `;
+  document.getElementById('messages').appendChild(el);
+  scrollChat();
+}
+
+function updateRoutingUI(model, routing, isOverride) {
+  const cfg = MODEL_CONFIG[model];
+  document.getElementById('routing-model-name').textContent = cfg.name + (isOverride ? ' (override)' : '');
+  document.getElementById('routing-reason-text').textContent = routing.reasons[0] || 'General task';
+  document.getElementById('routed-badge').innerHTML = `<span style="color:${cfg.color}">◆</span> ${cfg.name}`;
+  document.getElementById('routed-badge').style.color = cfg.color;
+  document.getElementById('routed-badge').style.borderColor = cfg.color + '44';
+}
+
+function updateHistory() {
+  const list = document.getElementById('history-list');
+  list.innerHTML = history.slice(0, 20).map(h => `
+    <div class="history-item">
+      <div class="history-q">${escHtml(h.q)}</div>
+      <div class="history-meta">
+        <span style="color:${h.model === 'compare' ? 'var(--accent2)' : MODEL_CONFIG[h.model]?.color || 'var(--text3)'}">
+          ${h.model === 'compare' ? '⊞ compare' : (MODEL_CONFIG[h.model]?.name || h.model)}
+        </span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function scrollChat() {
+  const m = document.getElementById('messages');
+  m.scrollTop = m.scrollHeight;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function formatText(text) {
+  return escHtml(text)
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`]+)`/g, '<code style="background:var(--surface3);padding:1px 5px;border-radius:4px;font-family:\'DM Mono\',monospace;font-size:12px">$1</code>')
+    .replace(/\n/g, '<br>');
+}
+</script>
+</body>
+</html>
